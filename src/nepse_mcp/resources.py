@@ -1,5 +1,4 @@
-"""MCP resource definitions for the NEPSE server."""
-
+import json
 from nepse_mcp.client import NepseAPIClient
 from nepse_mcp.utils import NepseAPIError
 
@@ -11,18 +10,25 @@ def register_resources(mcp) -> None:
         "nepse://companies",
         name="nepse_companies",
         description=(
-            "Complete list of all companies and securities listed on the Nepal "
-            "Stock Exchange (NEPSE), including their ticker symbols and sector "
-            "classifications. Use this to map company names to the stockSymbol "
-            "format required by other tools."
+            "A comprehensive directory of all companies and securities listed on "
+            "the Nepal Stock Exchange (NEPSE). Includes company names, ticker "
+            "symbols (stockSymbol), and sector information. "
+            "CRITICAL: Always read this resource to resolve a company's name "
+            "(e.g., 'Nabil Bank') into its exact 'stockSymbol' (e.g., 'NABIL') "
+            "BEFORE calling any pricing or dividend tools."
         ),
         mime_type="application/json",
     )
-    async def get_companies() -> list[dict]:
-        """Return the full NEPSE company listing."""
+    async def get_companies() -> str:
+        """Return the full NEPSE company listing as a JSON string."""
         try:
             async with NepseAPIClient() as client:
                 companies = await client.get_companies()
-            return [c.model_dump() for c in companies]
+            
+            return json.dumps([c.model_dump() for c in companies])
+            
         except NepseAPIError as exc:
-            raise RuntimeError(str(exc)) from exc
+            raise RuntimeError(
+                f"Failed to fetch the NEPSE company directory. "
+                f"Underlying API error: {exc}"
+            ) from exc
