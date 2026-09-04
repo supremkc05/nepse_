@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server that exposes Nepal Stock Exchange (NEPSE) market data from the unofficial [NepaliPaisa](https://nepalipaisa.com) API to Claude and other LLM clients.
 
-> **Note:** This server uses an unofficial, reverse-engineered API. Availability, rate limits, and terms of use are not guaranteed. Use responsibly.
+> **Note:**This server uses an unofficial, reverse-engineered API created strictly for studying the Model Context Protocol (MCP). Availability, rate limits, and terms of use are not guaranteed. It is not intended or suitable for providing financial advice or predictions. Use responsi.
 
 ## Features
 
@@ -14,9 +14,12 @@ An MCP (Model Context Protocol) server that exposes Nepal Stock Exchange (NEPSE)
   - `get_top_market_movers` — ranked market leaders by gainers, turnover, or volume
 - **Prompt:** `analyze_nepse_stock` — guided multi-step stock analysis
 
-## Installation
+## Requirements
 
-Requires Python 3.12+ and [uv](https://github.com/astral-sh/uv).
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+
+## Installation
 
 ```bash
 git clone <repo>
@@ -24,13 +27,11 @@ cd Nepse_Mcp
 uv sync
 ```
 
-Copy the environment template:
+Copy the environment template and edit if needed (defaults work out of the box):
 
 ```bash
 cp .env.example .env
 ```
-
-Edit `.env` if you need to override defaults (the defaults work out of the box).
 
 ## Running the Server
 
@@ -40,40 +41,71 @@ uv run nepse-mcp
 
 ## Claude Desktop Integration
 
-Add the following to your Claude Desktop config:
+Add the following entry to your Claude Desktop config file:
 
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+| Platform | Config path |
+|---|---|
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
 ```json
 {
   "mcpServers": {
-    "nepse": {
-      "command": "uv",
+    "nepse-market-data": {
+      "command": "/home/ajay/.local/bin/uv",
       "args": [
-       "--dire ctory",
-        "/absolute/path/to/Nepse_Mcp",
         "run",
-        "nepse-mcp"
+        "--with",
+        "fastmcp",
+        "--with-editable",
+        "/absolute/path/to/Nepse_Mcp",
+        "fastmcp",
+        "run",
+        "/absolute/path/to/Nepse_Mcp/src/nepse_mcp/main.py"
       ]
     }
   }
 }
 ```
 
-Replace `/absolute/path/to/Nepse_Mcp` with the actual absolute path to this project on your machine.
+Replace `/absolute/path/to/Nepse_Mcp` with the actual path on your machine. Use `which uv` to confirm the correct path to the `uv` binary for the `command` field.
 
-Replace  command : "uv" with  the output  form the which uv 
+### Applying config changes
+
+Claude Desktop does not hot-reload its MCP config. After editing `claude_desktop_config.json` you need to fully restart the app. On Linux/macOS you can do this from the terminal:
+
+```bash
+# Kill all Claude Desktop processes, then relaunch the app normally
+pkill -f "claude" && echo "Killed" || echo "No Claude process found"
+```
+
+On Windows, close Claude Desktop from the system tray before reopening it.
+
+### Troubleshooting MCP connection issues
+
+If the server shows as disconnected in Claude Desktop, check the MCP log file:
+
+| Platform | Log path |
+|---|---|
+| Linux | `~/.config/Claude/logs/mcp-server-nepse-market-data.log` |
+| macOS | `~/Library/Logs/Claude/mcp-server-nepse-market-data.log` |
+| Windows | `%APPDATA%\Claude\logs\mcp-server-nepse-market-data.log` |
+
+Common causes:
+- **Wrong `uv` path** — run `which uv` and update the `command` field accordingly.
+- **Environment variable conflict** — `uv` reserves `HTTP_TIMEOUT` for its own use. This project uses `NEPSE_HTTP_TIMEOUT` to avoid the collision.
+- **Server not starting** — run the exact command from the config manually in a terminal to see the raw error output.
 
 ## Development
 
-Run tests:
+Run the test suite:
 
 ```bash
 uv run pytest
 ```
 
-Run tests with verbose output:
+Run with verbose output:
 
 ```bash
 uv run pytest -v
@@ -97,11 +129,13 @@ FastMCP Server (src/nepse_mcp/main.py)
 ## Tool Reference
 
 ### `get_live_market_data`
+
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `stock_symbol` | string | No | `""` | Ticker (e.g. `NABIL`). Empty returns all stocks + market summary. |
+| `stock_symbol` | string | No | `""` | Ticker (e.g. `NABIL`). Empty string returns all stocks and a market summary. |
 
 ### `get_price_history`
+
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `stock_symbol` | string | Yes | — | Ticker (e.g. `NABIL`) |
@@ -111,6 +145,7 @@ FastMCP Server (src/nepse_mcp/main.py)
 | `page_no` | integer | No | `1` | Page number; increment when `has_more_data` is `true` |
 
 ### `get_dividend_history`
+
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `stock_symbol` | string | Yes | — | Ticker (e.g. `NABIL`) |
@@ -119,6 +154,7 @@ FastMCP Server (src/nepse_mcp/main.py)
 | `page_no` | integer | No | `1` | Page number; increment when `has_more_data` is `true` |
 
 ### `get_top_market_movers`
+
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `indicator` | enum | Yes | — | `gainers`, `turnover`, or `sharestraded` |
@@ -128,4 +164,5 @@ FastMCP Server (src/nepse_mcp/main.py)
 ## Resource Reference
 
 ### `nepse://companies`
-Returns the complete list of NEPSE-listed companies and securities with ticker symbols and sector classifications. Read this resource first to find the correct `stockSymbol` for a company before calling any tool.
+
+Returns the complete list of NEPSE-listed companies and securities with ticker symbols and sector classifications. Read this resource first to find the correct `stock_symbol` for a company before calling any tool.
