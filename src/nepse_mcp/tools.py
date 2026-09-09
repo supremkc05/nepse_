@@ -32,6 +32,49 @@ def register_tools(mcp) -> None:
         except NepseAPIError as exc:
             return {"status": "error", "error_message": str(exc)}
 
+# Add a tool to search companies by symbol or company name with exact-symbol preference.
+    @mcp.tool(
+        name="search_companies",
+        description=(
+            "Search the NEPSE company directory by ticker symbol or company name. "
+            "Prefer this over reading the full company resource when you only need a few matches."
+        ),
+    )
+    async def search_companies(
+        query: Annotated[str, "Partial or exact company name / ticker, e.g. 'NABIL' or 'Nabil'."],
+        limit: Annotated[int, "Maximum matches to return, capped at 20."] = 5,
+    ) -> dict:
+        """Search the company directory with compact match results."""
+        try:
+            async with NepseAPIClient() as client:
+                matches = await client.search_companies(query=query, limit=min(limit, 20))
+            return {
+                "status": "success",
+                "query": query,
+                "count": len(matches),
+                "matches": [match.model_dump() for match in matches],
+            }
+        except NepseAPIError as exc:
+            return {"status": "error", "error_message": str(exc)}
+
+    @mcp.tool(
+        name="get_stock_snapshot",
+        description=(
+            "Return a compact live snapshot for a single NEPSE stock. "
+            "Use this for stock overviews instead of requesting broader live market payloads."
+        ),
+    )
+    async def get_stock_snapshot(
+        stock_symbol: Annotated[str, "Ticker symbol (e.g., 'NABIL')."],
+    ) -> dict:
+        """Get a compact live snapshot for one stock."""
+        try:
+            async with NepseAPIClient() as client:
+                snapshot = await client.get_stock_snapshot(stock_symbol=stock_symbol.strip().upper())
+            return {"status": "success", "data": snapshot.model_dump()}
+        except NepseAPIError as exc:
+            return {"status": "error", "error_message": str(exc)}
+
     @mcp.tool(
         name="get_dividend_history",
         description=(
@@ -123,6 +166,36 @@ def register_tools(mcp) -> None:
             return {"status": "error", "error_message": str(exc)}
 
     @mcp.tool(
+        name="get_price_history_summary",
+        description=(
+            "Return compact, derived price-history metrics for a single stock over a date range. "
+            "Prefer this over raw history when you want trend and performance analysis."
+        ),
+    )
+    async def get_price_history_summary(
+        stock_symbol: Annotated[str, "Ticker symbol (e.g., 'NABIL')."],
+        from_date: Annotated[str, "Start date in YYYY-MM-DD format."],
+        to_date: Annotated[str, "End date in YYYY-MM-DD format."],
+    ) -> dict:
+        """Get summary metrics for a stock's price history."""
+        try:
+            validate_date_format(from_date)
+            validate_date_format(to_date)
+        except ValueError as exc:
+            return {"status": "error", "error_message": f"Invalid date format: {exc}"}
+
+        try:
+            async with NepseAPIClient() as client:
+                summary = await client.get_price_history_summary(
+                    stock_symbol=stock_symbol.strip().upper(),
+                    from_date=from_date,
+                    to_date=to_date,
+                )
+            return {"status": "success", "data": summary.model_dump()}
+        except NepseAPIError as exc:
+            return {"status": "error", "error_message": str(exc)}
+
+    @mcp.tool(
         name="get_top_market_movers",
         description=(
             "Retrieve a ranked list of NEPSE stocks by a chosen market indicator. "
@@ -159,5 +232,33 @@ def register_tools(mcp) -> None:
                 "count": len(movers),
                 "movers": [m.model_dump() for m in movers],
             }
+        except NepseAPIError as exc:
+            return {"status": "error", "error_message": str(exc)}
+
+    @mcp.tool(
+        name="compare_stocks",
+        description=(
+            "Compare multiple NEPSE stocks by a fixed metric and return ranked compact results. "
+            "Use this instead of manually comparing raw payloads."
+        ),
+    )
+    async def compare_stocks(
+        stock_symbols: Annotated[list[str], "Ticker symbols to compare, e.g. ['NABIL', 'ADBL']."],
+        metric: Annotated[
+            Literal["closing_price", "percent_change", "volume", "turnover", "30d_return"],
+            "Comparison metric: closing_price, percent_change, volume, turnover, or 30d_return.",
+        ],
+    ) -> dict:
+        """Compare stocks by a compact fixed metric."""
+        try:
+            unique_symbols = list(
+                dict.fromkeys(symbol.strip().upper() for symbol in stock_symbols if symbol.strip())
+            )
+            async with NepseAPIClient() as client:
+                comparison = await client.compare_stocks(
+                    stock_symbols=unique_symbols,
+                    metric=metric,
+                )
+            return {"status": "success", "data": comparison.model_dump()}
         except NepseAPIError as exc:
             return {"status": "error", "error_message": str(exc)}
