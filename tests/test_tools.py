@@ -144,6 +144,126 @@ TOP_MOVERS_RESPONSE = {
     ],
 }
 
+PRICE_HISTORY_SUMMARY_RESPONSE = {
+    "statusCode": 200,
+    "message": "Success",
+    "result": {
+        "data": [
+            {
+                "sn": 1,
+                "tradeDate": "2026-08-01T00:00:00",
+                "tradeDateString": "2026-08-01",
+                "maxPrice": 101.0,
+                "minPrice": 99.0,
+                "closingPrice": 100.0,
+                "noOfTransactions": 10,
+                "volume": 1000,
+                "amount": 100000.0,
+                "previousClosing": 98.0,
+                "differenceRs": 2.0,
+                "percentChange": 2.04,
+            },
+            {
+                "sn": 2,
+                "tradeDate": "2026-08-02T00:00:00",
+                "tradeDateString": "2026-08-02",
+                "maxPrice": 106.0,
+                "minPrice": 102.0,
+                "closingPrice": 105.0,
+                "noOfTransactions": 14,
+                "volume": 1500,
+                "amount": 157500.0,
+                "previousClosing": 100.0,
+                "differenceRs": 5.0,
+                "percentChange": 5.0,
+            },
+            {
+                "sn": 3,
+                "tradeDate": "2026-08-03T00:00:00",
+                "tradeDateString": "2026-08-03",
+                "maxPrice": 111.0,
+                "minPrice": 107.0,
+                "closingPrice": 110.0,
+                "noOfTransactions": 20,
+                "volume": 1200,
+                "amount": 132000.0,
+                "previousClosing": 105.0,
+                "differenceRs": 5.0,
+                "percentChange": 4.76,
+            },
+        ],
+        "pager": {
+            "pageNo": 1,
+            "itemsPerPage": 100,
+            "pagePerDisplay": 5,
+            "totalNextPages": 0,
+        },
+    },
+}
+
+LONG_PRICE_HISTORY_RESPONSE = {
+    "statusCode": 200,
+    "message": "Success",
+    "result": {
+        "data": [
+            {
+                "sn": idx + 1,
+                "tradeDate": f"2026-08-{idx + 1:02d}T00:00:00",
+                "tradeDateString": f"2026-08-{idx + 1:02d}",
+                "maxPrice": float(close + 1),
+                "minPrice": float(close - 1),
+                "closingPrice": float(close),
+                "noOfTransactions": 10 + idx,
+                "volume": volume,
+                "amount": float(close * volume),
+                "previousClosing": float(prev_close),
+                "differenceRs": float(close - prev_close),
+                "percentChange": round(((close - prev_close) / prev_close) * 100, 2),
+            }
+            for idx, (close, prev_close, volume) in enumerate(
+                [
+                    (100, 99, 1000),
+                    (102, 100, 1050),
+                    (104, 102, 1100),
+                    (103, 104, 1150),
+                    (106, 103, 1200),
+                    (108, 106, 1250),
+                    (107, 108, 1300),
+                    (109, 107, 1400),
+                    (111, 109, 1500),
+                    (110, 111, 1600),
+                    (112, 110, 1700),
+                    (115, 112, 1800),
+                    (117, 115, 1900),
+                    (118, 117, 2000),
+                    (120, 118, 2200),
+                    (119, 120, 2400),
+                    (121, 119, 2600),
+                    (124, 121, 2800),
+                    (126, 124, 3000),
+                    (128, 126, 3200),
+                    (127, 128, 3400),
+                    (129, 127, 3600),
+                    (132, 129, 3800),
+                    (134, 132, 4000),
+                    (136, 134, 4200),
+                    (135, 136, 4400),
+                    (137, 135, 4600),
+                    (139, 137, 4800),
+                    (141, 139, 5000),
+                    (143, 141, 5200),
+                ]
+            )
+        ],
+        "pager": {
+            "pageNo": 1,
+            "itemsPerPage": 100,
+            "pagePerDisplay": 5,
+            "totalNextPages": 0,
+        },
+    },
+}
+
 
 # ── Tool tests ────────────────────────────────────────────────────────────────
 
@@ -171,9 +291,10 @@ async def test_get_live_market_data_tool():
 
     # FastMCP serialises dict return values as JSON text content
     payload = json.loads(result.content[0].text)
-    assert len(payload["stocks"]) == 1
-    assert payload["stocks"][0]["stockSymbol"] == "ADBL"
-    assert payload["summary"]["totalTxns"] == 40692
+    assert payload["status"] == "success"
+    assert len(payload["data"]["stocks"]) == 1
+    assert payload["data"]["stocks"][0]["stockSymbol"] == "ADBL"
+    assert payload["data"]["summary"]["totalTxns"] == 40692
 
 
 @pytest.mark.asyncio
@@ -228,8 +349,8 @@ async def test_get_price_history_invalid_date_format():
         )
 
     payload = json.loads(result.content[0].text)
-    assert "error" in payload
-    assert "YYYY-MM-DD" in payload["error"]
+    assert payload["status"] == "error"
+    assert "YYYY-MM-DD" in payload["error_message"]
 
 
 @pytest.mark.asyncio
@@ -295,3 +416,232 @@ async def test_prompt_returns_messages():
     content = result.messages[0].content
     text = content.text if hasattr(content, "text") else str(content)
     assert "NABIL" in text
+
+# Add a test for the compact tools.
+@pytest.mark.asyncio
+async def test_tool_list_contains_compact_tools():
+    async with Client(mcp) as client:
+        tools = await client.list_tools()
+    names = {t.name for t in tools}
+    assert "search_companies" in names
+    assert "get_stock_snapshot" in names
+    assert "get_price_history_summary" in names
+    assert "compare_stocks" in names
+
+
+@pytest.mark.asyncio
+async def test_search_companies_tool():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetCompanies").mock(
+            return_value=httpx.Response(200, json=COMPANIES_RESPONSE)
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool("search_companies", {"query": "ADBL"})
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["matches"][0]["stockSymbol"] == "ADBL"
+    assert payload["matches"][0]["matchType"] == "exact_symbol"
+
+
+@pytest.mark.asyncio
+async def test_get_stock_snapshot_tool():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockLive").mock(
+            return_value=httpx.Response(200, json=STOCK_LIVE_RESPONSE)
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "get_stock_snapshot", {"stock_symbol": "ADBL"}
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data"]["stockSymbol"] == "ADBL"
+    assert payload["data"]["dayHigh"] == 500.0
+
+
+@pytest.mark.asyncio
+async def test_get_price_history_summary_tool():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockHistory").mock(
+            return_value=httpx.Response(200, json=LONG_PRICE_HISTORY_RESPONSE)
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "get_price_history_summary",
+                {
+                    "stock_symbol": "ADBL",
+                    "from_date": "2026-08-01",
+                    "to_date": "2026-08-03",
+                },
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data"]["recordCount"] == 30
+    assert payload["data"]["percentReturn"] == 43.0
+    assert payload["data"]["dayChange"] == 2.0
+    assert payload["data"]["dayChangePercent"] == 1.42
+    assert payload["data"]["sevenDayReturn"] == 8.33
+    assert payload["data"]["thirtyDayReturn"] == 43.0
+    assert payload["data"]["sma5"] == 139.0
+    assert payload["data"]["sma10"] == 135.3
+    assert payload["data"]["sma20"] == 127.65
+    assert payload["data"]["maxDrawdown"] == 0.96
+    assert payload["data"]["volumeTrend"] == "increasing"
+
+
+@pytest.mark.asyncio
+async def test_compare_stocks_tool():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockLive").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "statusCode": 200,
+                        "message": "Success",
+                        "result": {
+                            "stocks": [
+                                {**STOCK_LIVE_RESPONSE["result"]["stocks"][0], "stockSymbol": "ADBL", "percentChange": 0.71}
+                            ]
+                        },
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "statusCode": 200,
+                        "message": "Success",
+                        "result": {
+                            "stocks": [
+                                {**STOCK_LIVE_RESPONSE["result"]["stocks"][0], "stockSymbol": "NABIL", "percentChange": 1.2}
+                            ]
+                        },
+                    },
+                ),
+            ]
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "compare_stocks",
+                {"stock_symbols": ["ADBL", "NABIL"], "metric": "percent_change"},
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data"]["metric"] == "percent_change"
+    assert payload["data"]["rankings"][0]["stockSymbol"] == "NABIL"
+
+
+@pytest.mark.asyncio
+async def test_compare_stocks_tool_uses_thirty_day_return():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockHistory").mock(
+            side_effect=[
+                httpx.Response(200, json=LONG_PRICE_HISTORY_RESPONSE),
+                httpx.Response(200, json=LONG_PRICE_HISTORY_RESPONSE),
+            ]
+        )
+        respx.get("https://nepalipaisa.com/api/GetStockLive").mock(
+            side_effect=[
+                httpx.Response(200, json=STOCK_LIVE_RESPONSE),
+                httpx.Response(
+                    200,
+                    json={
+                        "statusCode": 200,
+                        "message": "Success",
+                        "result": {
+                            "stocks": [
+                                {
+                                    **STOCK_LIVE_RESPONSE["result"]["stocks"][0],
+                                    "stockSymbol": "NABIL",
+                                    "companyName": "Nabil Bank Limited",
+                                }
+                            ]
+                        },
+                    },
+                ),
+            ]
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "compare_stocks",
+                {"stock_symbols": ["ADBL", "NABIL"], "metric": "30d_return"},
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data"]["metric"] == "30d_return"
+    assert all(item["value"] == 43.0 for item in payload["data"]["rankings"])
+
+
+@pytest.mark.asyncio
+async def test_search_companies_tool_returns_empty_matches():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetCompanies").mock(
+            return_value=httpx.Response(200, json=COMPANIES_RESPONSE)
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "search_companies", {"query": "NOPE", "limit": 5}
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["count"] == 0
+    assert payload["matches"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_price_history_summary_tool_invalid_date():
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_price_history_summary",
+            {
+                "stock_symbol": "ADBL",
+                "from_date": "08-01-2026",
+                "to_date": "2026-08-03",
+            },
+        )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "error"
+    assert "YYYY-MM-DD" in payload["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_get_price_history_summary_tool_empty_history():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockHistory").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "statusCode": 200,
+                    "message": "Success",
+                    "result": {
+                        "data": [],
+                        "pager": {
+                            "pageNo": 1,
+                            "itemsPerPage": 100,
+                            "pagePerDisplay": 5,
+                            "totalNextPages": 0,
+                        },
+                    },
+                },
+            )
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "get_price_history_summary",
+                {
+                    "stock_symbol": "ADBL",
+                    "from_date": "2026-08-01",
+                    "to_date": "2026-08-03",
+                },
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "error"
+    assert "No price history found" in payload["error_message"]
