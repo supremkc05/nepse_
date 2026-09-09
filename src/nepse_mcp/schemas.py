@@ -115,9 +115,80 @@ class PriceHistoryRecord(BaseModel):
 
 
 IndicatorType = Literal["gainers", "turnover", "sharestraded"]
+CompareMetric = Literal[
+    "closing_price", "percent_change", "volume", "turnover", "30d_return"
+]
+TrendLabel = Literal["uptrend", "downtrend", "sideways", "insufficient_data"]
+VolumeTrendLabel = Literal["increasing", "decreasing", "stable", "insufficient_data"]
 
 
 class PaginatedData(BaseModel, Generic[T]):
     """Wraps a page of data with pagination metadata."""
     data: List[T]
     pager: Pager
+
+
+class CompanySearchHit(BaseModel):
+    companyId: int
+    companyName: str
+    stockSymbol: str
+    sectorId: int
+    sectorName: Optional[str] = None
+    matchType: Literal["exact_symbol", "prefix_symbol", "name_match"]
+
+
+class StockSnapshot(BaseModel):
+    stockSymbol: str
+    companyName: str
+    closingPrice: float
+    previousClosing: float
+    differenceRs: float
+    percentChange: float
+    volume: int
+    turnover: float
+    dayHigh: float
+    dayLow: float
+    openingPrice: float
+    tradeDate: str
+    asOfDate: str
+    asOfDateString: Optional[str] = None
+
+
+class PriceHistorySummary(BaseModel):
+    stockSymbol: str
+    fromDate: str
+    toDate: str
+    recordCount: int
+    firstClose: float
+    lastClose: float
+    absoluteReturn: float
+    percentReturn: float
+    highestClose: float
+    lowestClose: float
+    dayChange: float
+    dayChangePercent: float
+    sevenDayReturn: float | None = None
+    thirtyDayReturn: float | None = None
+    sma5: float | None = None
+    sma10: float | None = None
+    sma20: float | None = None
+    maxDrawdown: float
+    averageVolume: float
+    averageTurnover: float
+    volatility: float
+    volumeTrend: VolumeTrendLabel
+    trend: TrendLabel
+
+
+class StockComparisonItem(BaseModel):
+    stockSymbol: str
+    companyName: str
+    metric: CompareMetric
+    value: float
+    tradeDate: Optional[str] = None
+    asOfDate: Optional[str] = None
+
+
+class StockComparisonResult(BaseModel):
+    metric: CompareMetric
+    rankings: List[StockComparisonItem]
