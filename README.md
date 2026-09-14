@@ -6,16 +6,22 @@ An MCP (Model Context Protocol) server that exposes Nepal Stock Exchange (NEPSE)
 
 ## Features
 
-- **Resource:** `nepse://companies` — full list of NEPSE-listed companies and tickers
+- **Resources:**
+  - `nepse://companies` — full list of NEPSE-listed companies and tickers
+  - `nepse://market-glossary` — field meanings, indicators, sectors, and response flags
+  - `nepse://analysis-rules` — momentum/dividend interpretation rules and caveats
 - **Tools:**
   - `search_companies` — compact ticker/company lookup without loading the full directory
   - `get_stock_snapshot` — compact live overview for one stock
   - `get_price_history_summary` — derived trend/performance metrics for a date range
   - `compare_stocks` — ranked side-by-side stock comparison by fixed metric
+  - `get_market_glossary` — field meanings, indicators, sectors, and response flags (tool mirror of the glossary resource)
+  - `get_analysis_rules` — momentum/dividend interpretation rules (tool mirror of the analysis-rules resource)
   - `get_live_market_data` — live trading data for one or all stocks
   - `get_price_history` — daily OHLC price history with date range and pagination
   - `get_dividend_history` — bonus share and cash dividend history
   - `get_top_market_movers` — ranked market leaders by gainers, turnover, or volume
+- **Response envelope:** tools return `status`, `data_complete`, `warning`, and `source_gap_detected` so partial history is explicit
 - **Prompt:** `analyze_nepse_stock` — guided multi-step stock analysis
 
 ## Requirements
@@ -138,7 +144,10 @@ For lower token usage and more reliable analysis, prefer this order:
 2. Use `get_stock_snapshot` for a quick live overview.
 3. Use `get_price_history_summary` for trend and performance analysis.
 4. Use `compare_stocks` when ranking multiple symbols.
-5. Use `nepse://companies` or `get_price_history` only when you truly need the full raw payload.
+5. Call `get_market_glossary` and `get_analysis_rules` before explaining metrics
+   (prefer these tools over `nepse://` resources in Claude Desktop).
+6. Honor `data_complete` / `warning` / `source_gap_detected` — do not invent missing values.
+7. Use `nepse://companies` or `get_price_history` only when you truly need the full raw payload.
 
 ## Compact Tool Reference
 
@@ -171,6 +180,14 @@ Returns compact derived metrics such as record count, first/last close, absolute
 |---|---|---|---|---|
 | `stock_symbols` | string[] | Yes | — | Tickers to compare. |
 | `metric` | enum | Yes | — | One of `closing_price`, `percent_change`, `volume`, `turnover`, or `30d_return`. |
+
+### `get_market_glossary`
+
+No parameters. Returns the same glossary JSON as `nepse://market-glossary`, wrapped in the standard tool envelope.
+
+### `get_analysis_rules`
+
+No parameters. Returns the same analysis-rules JSON as `nepse://analysis-rules`, wrapped in the standard tool envelope.
 
 ## Raw Tool Reference
 
@@ -212,3 +229,11 @@ Returns compact derived metrics such as record count, first/last close, absolute
 ### `nepse://companies`
 
 Returns the complete list of NEPSE-listed companies and securities with ticker symbols and sector classifications. Read this resource when you need the full directory; prefer `search_companies` when you only need a few likely matches.
+
+### `nepse://market-glossary`
+
+Static definitions for normalized field names (`turnover`, `dayHigh`, SMAs, etc.), market indicators, common sectors, and response completeness flags. In Claude Desktop, prefer the `get_market_glossary` tool mirror.
+
+### `nepse://analysis-rules`
+
+Guidance for interpreting momentum, dividend consistency, and common caveats so clients avoid hallucinated finance explanations. In Claude Desktop, prefer the `get_analysis_rules` tool mirror.

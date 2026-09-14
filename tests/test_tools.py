@@ -292,8 +292,20 @@ async def test_get_live_market_data_tool():
     # FastMCP serialises dict return values as JSON text content
     payload = json.loads(result.content[0].text)
     assert payload["status"] == "success"
+    assert payload["data_complete"] is True
+    assert payload["warning"] is None
+    assert payload["source_gap_detected"] is False
     assert len(payload["data"]["stocks"]) == 1
-    assert payload["data"]["stocks"][0]["stockSymbol"] == "ADBL"
+    stock = payload["data"]["stocks"][0]
+    assert stock["stockSymbol"] == "ADBL"
+    assert stock["turnover"] == 1000000.0
+    assert stock["dayHigh"] == 500.0
+    assert stock["dayLow"] == 490.0
+    assert stock["dayChange"] == 3.5
+    assert "ltv" not in stock
+    assert "dataType" not in stock
+    assert "asOfDateString" not in stock
+    assert "amount" not in stock
     assert payload["data"]["summary"]["totalTxns"] == 40692
 
 
@@ -309,9 +321,12 @@ async def test_get_dividend_history_tool():
             )
 
     payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is True
     assert payload["stock_symbol"] == "ADBL"
     assert payload["has_more_data"] is False
     assert payload["records"][0]["bonus"] == 10.0
+    assert "sn" not in payload["records"][0]
 
 
 @pytest.mark.asyncio
@@ -331,9 +346,14 @@ async def test_get_price_history_tool():
             )
 
     payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is True
     assert payload["stock_symbol"] == "ADBL"
     assert payload["has_more_data"] is False
     assert payload["records"][0]["closingPrice"] == 498.5
+    assert payload["records"][0]["turnover"] == 1000000.0
+    assert "sn" not in payload["records"][0]
+    assert "amount" not in payload["records"][0]
 
 
 @pytest.mark.asyncio
@@ -365,9 +385,14 @@ async def test_get_top_market_movers_tool():
             )
 
     payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is True
     assert payload["indicator"] == "gainers"
     assert payload["count"] == 1
     assert payload["movers"][0]["stockSymbol"] == "WNLB"
+    assert payload["movers"][0]["turnover"] == 2136884.2
+    assert "ltv" not in payload["movers"][0]
+    assert "amount" not in payload["movers"][0]
 
 
 # ── Resource tests ────────────────────────────────────────────────────────────
@@ -378,6 +403,8 @@ async def test_companies_resource_is_listed():
         resources = await client.list_resources()
     uris = [str(r.uri) for r in resources]
     assert "nepse://companies" in uris
+    assert "nepse://market-glossary" in uris
+    assert "nepse://analysis-rules" in uris
 
 
 @pytest.mark.asyncio
@@ -392,6 +419,32 @@ async def test_companies_resource_returns_data():
     data = json.loads(contents[0].text)
     assert isinstance(data, list)
     assert data[0]["stockSymbol"] == "ADBL"
+
+
+@pytest.mark.asyncio
+async def test_market_glossary_resource_returns_definitions():
+    async with Client(mcp) as client:
+        contents = await client.read_resource("nepse://market-glossary")
+
+    data = json.loads(contents[0].text)
+    assert "fields" in data
+    assert "indicators" in data
+    assert "sectors" in data
+    assert "closingPrice" in data["fields"]
+    assert "gainers" in data["indicators"]
+
+
+@pytest.mark.asyncio
+async def test_analysis_rules_resource_returns_guidance():
+    async with Client(mcp) as client:
+        contents = await client.read_resource("nepse://analysis-rules")
+
+    data = json.loads(contents[0].text)
+    assert "momentum" in data
+    assert "dividends" in data
+    assert "caveats" in data
+    assert isinstance(data["caveats"], list)
+    assert len(data["caveats"]) >= 1
 
 
 # ── Prompt tests ──────────────────────────────────────────────────────────────
@@ -427,6 +480,37 @@ async def test_tool_list_contains_compact_tools():
     assert "get_stock_snapshot" in names
     assert "get_price_history_summary" in names
     assert "compare_stocks" in names
+    assert "get_market_glossary" in names
+    assert "get_analysis_rules" in names
+
+
+@pytest.mark.asyncio
+async def test_get_market_glossary_tool():
+    async with Client(mcp) as client:
+        result = await client.call_tool("get_market_glossary", {})
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is True
+    assert "fields" in payload["data"]
+    assert "indicators" in payload["data"]
+    assert "source_gap_detected" in payload["data"]["response_flags"]
+    assert payload["data"]["fields"]["turnover"].startswith("Total traded value")
+
+
+@pytest.mark.asyncio
+async def test_get_analysis_rules_tool():
+    async with Client(mcp) as client:
+        result = await client.call_tool("get_analysis_rules", {})
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is True
+    assert "momentum" in payload["data"]
+    assert "dividends" in payload["data"]
+    assert "caveats" in payload["data"]
+    assert isinstance(payload["data"]["caveats"], list)
+    assert len(payload["data"]["caveats"]) >= 1
 
 
 @pytest.mark.asyncio
@@ -457,8 +541,14 @@ async def test_get_stock_snapshot_tool():
 
     payload = json.loads(result.content[0].text)
     assert payload["status"] == "success"
+    assert payload["data_complete"] is True
+    assert payload["warning"] is None
+    assert payload["source_gap_detected"] is False
     assert payload["data"]["stockSymbol"] == "ADBL"
     assert payload["data"]["dayHigh"] == 500.0
+    assert "ltv" not in payload["data"]
+    assert "dataType" not in payload["data"]
+    assert "asOfDateString" not in payload["data"]
 
 
 @pytest.mark.asyncio
@@ -479,6 +569,9 @@ async def test_get_price_history_summary_tool():
 
     payload = json.loads(result.content[0].text)
     assert payload["status"] == "success"
+    assert payload["data_complete"] is True
+    assert payload["warning"] is None
+    assert payload["source_gap_detected"] is False
     assert payload["data"]["recordCount"] == 30
     assert payload["data"]["percentReturn"] == 43.0
     assert payload["data"]["dayChange"] == 2.0
@@ -490,6 +583,32 @@ async def test_get_price_history_summary_tool():
     assert payload["data"]["sma20"] == 127.65
     assert payload["data"]["maxDrawdown"] == 0.96
     assert payload["data"]["volumeTrend"] == "increasing"
+
+
+@pytest.mark.asyncio
+async def test_get_price_history_summary_marks_incomplete_for_short_history():
+    with respx.mock:
+        respx.get("https://nepalipaisa.com/api/GetStockHistory").mock(
+            return_value=httpx.Response(200, json=PRICE_HISTORY_SUMMARY_RESPONSE)
+        )
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "get_price_history_summary",
+                {
+                    "stock_symbol": "ADBL",
+                    "from_date": "2026-08-01",
+                    "to_date": "2026-08-03",
+                },
+            )
+
+    payload = json.loads(result.content[0].text)
+    assert payload["status"] == "success"
+    assert payload["data_complete"] is False
+    assert payload["source_gap_detected"] is True
+    assert payload["warning"] is not None
+    assert "SMA" in payload["warning"] or "unavailable" in payload["warning"].lower()
+    assert payload["data"]["sma20"] is None
+    assert payload["data"]["thirtyDayReturn"] is None
 
 
 @pytest.mark.asyncio
