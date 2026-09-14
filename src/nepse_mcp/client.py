@@ -1,5 +1,6 @@
 import math
 import time
+from datetime import date, timedelta
 from typing import Any, Optional
 
 import httpx
@@ -374,13 +375,16 @@ class NepseAPIClient:
         """Compare a set of stocks by a fixed metric and return rankings."""
         unique_symbols = list(dict.fromkeys(symbol.strip().upper() for symbol in stock_symbols if symbol.strip()))
         rankings: list[StockComparisonItem] = []
+        today = date.today()
+        trailing_from_date = (today - timedelta(days=30)).isoformat()
+        trailing_to_date = today.isoformat()
 
         for symbol in unique_symbols:
             if metric == "30d_return":
                 summary = await self.get_price_history_summary(
                     stock_symbol=symbol,
-                    from_date="2026-08-01",
-                    to_date="2026-08-30",
+                    from_date=trailing_from_date,
+                    to_date=trailing_to_date,
                 )
                 snapshot = await self.get_stock_snapshot(symbol)
                 rankings.append(

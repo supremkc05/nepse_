@@ -1,5 +1,6 @@
 """Tests for NepseAPIClient using respx HTTP mocks."""
 
+from datetime import date, timedelta
 import pytest
 import respx
 import httpx
@@ -575,3 +576,25 @@ async def test_compare_stocks_uses_thirty_day_return_metric():
     assert comparison.metric == "30d_return"
     assert len(comparison.rankings) == 2
     assert all(item.value == 43.0 for item in comparison.rankings)
+
+
+@pytest.mark.asyncio
+async def test_compare_stocks_thirty_day_return_uses_rolling_window():
+    today = date.today()
+    expected_from = (today - timedelta(days=30)).isoformat()
+    expected_to = today.isoformat()
+
+    with respx.mock:
+        history_route = respx.get("https://nepalipaisa.com/api/GetStockHistory").mock(
+            return_value=httpx.Response(200, json=LONG_PRICE_HISTORY_RESPONSE)
+        )
+        respx.get("https://nepalipaisa.com/api/GetStockLive").mock(
+            return_value=httpx.Response(200, json=STOCK_LIVE_RESPONSE)
+        )
+        async with NepseAPIClient() as client:
+            await client.compare_stocks(["ADBL"], metric="30d_return")
+
+    assert history_route.called
+    params = history_route.calls[0].request.url.params
+    assert params["fromDate"] == expected_from
+    assert params["toDate"] == expected_to
