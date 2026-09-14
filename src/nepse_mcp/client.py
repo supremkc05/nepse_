@@ -195,7 +195,6 @@ class NepseAPIClient:
             openingPrice=stock.openingPrice,
             tradeDate=stock.tradeDate,
             asOfDate=stock.asOfDate,
-            asOfDateString=stock.asOfDateString,
         )
 
     async def get_dividend_rights(

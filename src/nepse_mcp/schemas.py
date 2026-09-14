@@ -151,7 +151,62 @@ class StockSnapshot(BaseModel):
     openingPrice: float
     tradeDate: str
     asOfDate: str
-    asOfDateString: Optional[str] = None
+
+
+class CompactLiveStock(BaseModel):
+    """Normalized live/mover stock fields without upstream noise."""
+
+    stockSymbol: str
+    companyName: str
+    closingPrice: float
+    previousClosing: float
+    dayChange: float
+    percentChange: float
+    volume: int
+    turnover: float
+    dayHigh: float
+    dayLow: float
+    openingPrice: float
+    noOfTransactions: int
+    tradeDate: str
+    asOfDate: str
+
+
+class CompactMarketSummary(BaseModel):
+    totalTurnover: float
+    totalShares: int
+    totalTxns: int
+
+
+class CompactLiveMarketResult(BaseModel):
+    stocks: List[CompactLiveStock]
+    summary: Optional[CompactMarketSummary] = None
+
+
+class CompactPriceHistoryRecord(BaseModel):
+    tradeDate: str
+    dayHigh: float
+    dayLow: float
+    closingPrice: float
+    previousClosing: float
+    dayChange: float
+    percentChange: float
+    volume: int
+    turnover: float
+    noOfTransactions: int
+
+
+class CompactDividendRecord(BaseModel):
+    companyName: str
+    stockSymbol: str
+    bonus: float
+    cash: float
+    totalDividend: float
+    bookClosureDateAD: Optional[str] = None
+    fiscalYearAD: Optional[str] = None
+    fiscalYearBS: Optional[str] = None
+    rightShare: Optional[str] = None
+    rightBookCloseDateAD: Optional[str] = None
 
 
 class PriceHistorySummary(BaseModel):
